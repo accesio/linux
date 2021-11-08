@@ -1352,6 +1352,11 @@ pericom_do_set_divisor(struct uart_port *port, unsigned int baud,
 		}
 	}
 }
+static int pericom_do_startup(struct uart_port *port)
+{
+	port->flags |= UPF_MAGIC_MULTIPLIER;
+	return serial8250_do_startup(port);
+}
 static int pci_pericom_setup(struct serial_private *priv,
 		  const struct pciserial_board *board,
 		  struct uart_8250_port *port, int idx)
@@ -1372,6 +1377,7 @@ static int pci_pericom_setup(struct serial_private *priv,
 		return 1;
 
 	port->port.set_divisor = pericom_do_set_divisor;
+	port->port.startup = pericom_do_startup;
 
 	return setup_port(priv, port, bar, offset, board->reg_shift);
 }
@@ -1398,6 +1404,7 @@ static int pci_pericom_setup_four_at_eight(struct serial_private *priv,
 		return 1;
 
 	port->port.set_divisor = pericom_do_set_divisor;
+	port->port.startup = pericom_do_startup;
 
 	return setup_port(priv, port, bar, offset, board->reg_shift);
 }
