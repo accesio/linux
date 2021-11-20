@@ -64,7 +64,7 @@ static void pericom_do_set_divisor(struct uart_port *port, unsigned int baud,
 	for (scr = 16 ; scr > 4 ; scr--) {
 		int maxrate = port->uartclk / scr;
 		int divisor = maxrate / baud;
-		int delta = maxrate / divisor - baud;
+		int delta = divisor ? maxrate / divisor - baud : baud;
 
 		if (baud > maxrate + baud / 50)
 			continue;
