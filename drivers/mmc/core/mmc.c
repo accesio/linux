@@ -977,14 +977,14 @@ static void mmc_set_bus_speed(struct mmc_card *card)
 	unsigned int max_dtr = (unsigned int)-1;
 
 	if ((mmc_card_hs200(card) || mmc_card_hs400(card)) &&
-	     max_dtr > card->ext_csd.hs200_max_dtr)
+       max_dtr > card->ext_csd.hs200_max_dtr)
 		max_dtr = card->ext_csd.hs200_max_dtr;
 	else if (mmc_card_hs(card) && max_dtr > card->ext_csd.hs_max_dtr)
 		max_dtr = card->ext_csd.hs_max_dtr;
 	else if (max_dtr > card->csd.max_dtr)
 		max_dtr = card->csd.max_dtr;
-
-	mmc_set_clock(card->host, max_dtr);
+  
+    mmc_set_clock(card->host, max_dtr);
 }
 
 /*
@@ -995,12 +995,12 @@ static void mmc_set_bus_speed(struct mmc_card *card)
 static int mmc_select_bus_width(struct mmc_card *card)
 {
 	static unsigned ext_csd_bits[] = {
-		EXT_CSD_BUS_WIDTH_8,
-		EXT_CSD_BUS_WIDTH_4,
+    EXT_CSD_BUS_WIDTH_8,
+    EXT_CSD_BUS_WIDTH_4,
 	};
 	static unsigned bus_widths[] = {
 		MMC_BUS_WIDTH_8,
-		MMC_BUS_WIDTH_4,
+   MMC_BUS_WIDTH_4,
 	};
 	struct mmc_host *host = card->host;
 	unsigned idx, bus_width = 0;
@@ -1050,7 +1050,7 @@ static int mmc_select_bus_width(struct mmc_card *card)
 			err = bus_width;
 			break;
 		} else {
-			pr_warn("%s: switch to bus width %d failed\n",
+			pr_err("%s: switch to bus width %d failed\n",
 				mmc_hostname(host), 1 << bus_width);
 		}
 	}
@@ -1449,26 +1449,31 @@ static int mmc_select_hs200(struct mmc_card *card)
 	unsigned int old_timing, old_signal_voltage, old_clock;
 	int err = -EINVAL;
 	u8 val;
-
+  
 	old_signal_voltage = host->ios.signal_voltage;
 	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS200_1_2V)
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_120);
 
 	if (err && card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS200_1_8V)
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180);
-
+   
 	/* If fails try again during next card power cycle */
 	if (err)
 		return err;
-
+   
+   mmc_set_timing(card->host, MMC_TIMING_MMC_HS);
+	mmc_set_bus_speed(card);
+   
+   
+   
 	mmc_select_driver_type(card);
-
 	/*
 	 * Set the bus width(4 or 8) with host's support and
 	 * switch to HS200 mode if bus width is set successfully.
 	 */
 	err = mmc_select_bus_width(card);
 	if (err > 0) {
+    
 		val = EXT_CSD_TIMING_HS200 |
 		      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
 		err = __mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -1495,7 +1500,7 @@ static int mmc_select_hs200(struct mmc_card *card)
 		 * tuning will fail and the result ends up the same.
 		 */
 		err = mmc_switch_status(card, false);
-
+   
 		/*
 		 * mmc_select_timing() assumes timing has not changed if
 		 * it is a switch error.
@@ -1524,18 +1529,41 @@ static int mmc_select_timing(struct mmc_card *card)
 {
 	int err = 0;
 
+  /*
+  * The following code has been modified such that if the check for any standard fails, 
+  * the processor will automatically switch to the next available lowest frequency standard.
+  * This ensures that the booting process never fails. 
+  * The error messages for any failing frequency standard will be displayed in the kernal 
+  * boot prints so that the user knows the currently invoked frequency standard.
+  */
 	if (!mmc_can_ext_csd(card))
 		goto bus_speed;
 
 	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES)
+  {
 		err = mmc_select_hs400es(card);
+    if (err && err != -EBADMSG)
+    {
+      err = mmc_select_hs200(card);
+      if (err && err != -EBADMSG)
+      {
+        err = mmc_select_hs(card);
+      }
+    }
+  }
 	else if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS200)
-		err = mmc_select_hs200(card);
-	else if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS)
+  {
+    err = mmc_select_hs200(card);
+    if (err && err != -EBADMSG)
+    {
+      err = mmc_select_hs(card);
+    }
+  }
+  else if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS)
 		err = mmc_select_hs(card);
 
 	if (err && err != -EBADMSG)
-		return err;
+		goto bus_speed;
 
 bus_speed:
 	/*
@@ -1597,8 +1625,10 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 
 	/* The extra bit indicates that we support high capacity */
 	err = mmc_send_op_cond(host, ocr | (1 << 30), &rocr);
-	if (err)
+	if (err){
+   pr_debug("unable to \n");
 		goto err;
+  }
 
 	/*
 	 * For SPI, enable CRC as appropriate.
@@ -1614,8 +1644,10 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	 */
 	err = mmc_send_cid(host, cid);
 	if (err)
+   {
+   pr_debug("unable to fetch cid\n");
 		goto err;
-
+  }
 	if (oldcard) {
 		if (memcmp(cid, oldcard->raw_cid, sizeof(cid)) != 0) {
 			pr_debug("%s: Perhaps the card was replaced\n",
