@@ -684,10 +684,12 @@ static int am65_cpsw_nuss_ndo_slave_open(struct net_device *ndev)
 						 port->slave.phy_node,
 						 &am65_cpsw_nuss_adjust_link,
 						 0, port->slave.phy_if);
+//Supress error output because this is harmless on eNET, but annoying to see
+// every ninety seconds
 		if (!port->slave.phy) {
-			dev_err(common->dev, "phy %pOF not found on slave %d\n",
-				port->slave.phy_node,
-				port->port_id);
+//			dev_err(common->dev, "phy %pOF not found on slave %d\n",
+//				port->slave.phy_node,
+//				port->port_id);
 			ret = -ENODEV;
 			goto error_cleanup;
 		}
