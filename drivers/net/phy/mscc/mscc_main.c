@@ -1846,6 +1846,7 @@ static irqreturn_t vsc8584_handle_interrupt(struct phy_device *phydev)
 
 static int vsc85xx_config_init(struct phy_device *phydev)
 {
+	printk("--> mscc_main.c file && function is vsc85xx_config_init <---/n");
 	int rc, i, phy_id;
 	struct vsc8531_private *vsc8531 = phydev->priv;
 
@@ -1869,6 +1870,16 @@ static int vsc85xx_config_init(struct phy_device *phydev)
 			return rc;
 	}
 
+u16 read_val = 0;
+	printk("-->paras custom phy delay<--\n");
+    phy_write(phydev, 31, 2);
+	phy_write(phydev, 0x14,0x0010);
+
+	printk("paras read phy link 17 once\n");
+	phy_write(phydev, 31, 0);
+
+	read_val = phy_read(phydev,17);
+
 	rc = vsc85xx_eee_init_seq_set(phydev);
 	if (rc)
 		return rc;
@@ -1878,6 +1889,20 @@ static int vsc85xx_config_init(struct phy_device *phydev)
 		if (rc)
 			return rc;
 	}
+
+	printk("paras eth led\n");
+	phy_write(phydev, 31, 0);
+	phy_write(phydev, 29, 0xFAF0);
+	phy_write(phydev, 30,  0x040F);
+
+	phy_write(phydev, 31, 0x0010);
+	phy_write(phydev, 0x0E, 0x2000);
+	phy_write(phydev, 31,  0x0002);
+	phy_write(phydev, 0x11, 0x3900);
+
+	printk("paras read phy link 17 twice\n");
+	phy_write(phydev, 31, 0);
+	read_val = phy_read(phydev,17);
 
 	return 0;
 }
@@ -2202,6 +2227,7 @@ static irqreturn_t vsc85xx_handle_interrupt(struct phy_device *phydev)
 
 static int vsc85xx_config_aneg(struct phy_device *phydev)
 {
+	printk("--> mscc_main.c file && function is vsc85xx_config_aneg <---/n");
 	int rc;
 
 	rc = vsc85xx_mdix_set(phydev, phydev->mdix_ctrl);
@@ -2213,12 +2239,16 @@ static int vsc85xx_config_aneg(struct phy_device *phydev)
 
 static int vsc85xx_read_status(struct phy_device *phydev)
 {
+	//printk("--> mscc_main.c file && function is vsc85xx_read_status hollow<---/n");
+
 	int rc;
 
 	rc = vsc85xx_mdix_get(phydev, &phydev->mdix);
-	if (rc < 0)
-		return rc;
+	if (rc < 0){
 
+		printk("error from mdix_get\n");
+		return rc;
+	}
 	return genphy_read_status(phydev);
 }
 
@@ -2327,6 +2357,7 @@ static int vsc8584_probe(struct phy_device *phydev)
 
 static int vsc85xx_probe(struct phy_device *phydev)
 {
+	printk("--> mscc_main.c file && function is vsc85xx_probe <---/n");
 	struct vsc8531_private *vsc8531;
 	int rate_magic;
 	u32 default_mode[2] = {VSC8531_LINK_1000_ACTIVITY,
@@ -2364,14 +2395,14 @@ static void vsc85xx_remove(struct phy_device *phydev)
 static struct phy_driver vsc85xx_driver[] = {
 {
 	.phy_id		= PHY_ID_VSC8501,
-	.name		= "Microsemi GE VSC8501 SyncE",
+	.name		= "Microsemi GE VSC8501 SyncE parasbhanot",
 	.phy_id_mask	= 0xfffffff0,
 	/* PHY_BASIC_FEATURES */
 	.soft_reset	= &genphy_soft_reset,
 	.config_init	= &vsc85xx_config_init,
 	.config_aneg    = &vsc85xx_config_aneg,
 	.read_status	= &vsc85xx_read_status,
-	.handle_interrupt = vsc85xx_handle_interrupt,
+	.handle_interrupt	= &vsc85xx_handle_interrupt,
 	.config_intr	= &vsc85xx_config_intr,
 	.suspend	= &genphy_suspend,
 	.resume		= &genphy_resume,
