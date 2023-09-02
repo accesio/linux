@@ -152,8 +152,7 @@
 		regulator-boot-on;
 		enable-active-high;
 		vin-supply = <&vsys_3v3>;
-		gpio = <&exp1 6 GPIO_ACTIVE_HIGH>;
-	};
+			};
 
 	vddb: fixedregulator-vddb {
 		compatible = "regulator-fixed";
@@ -167,14 +166,31 @@
 
 	leds {
 		compatible = "gpio-leds";
+pinctrl-names = "default";
+		pinctrl-0 = <&mygpio1_pins_default>;
 
 		led-0 {
-			label = "am64-evm:red:heartbeat";
-			gpios = <&exp1 16 GPIO_ACTIVE_HIGH>;
+			label = "kernel heartbeat";
+			gpios = <&main_gpio0 40 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
 			linux,default-trigger = "heartbeat";
 			function = LED_FUNCTION_HEARTBEAT;
 			default-state = "off";
 		};
+
+		led-1 {
+			label = "sd-card activity";
+			gpios = <&main_gpio0 37 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc1";
+			default-state = "off";
+		};
+
+		led-2 {
+			label = "cpu-0 activity";
+			gpios = <&main_gpio0 34 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc0";
+			default-state = "off";
+		};
+
 	};
 
 	mdio_mux: mux-controller {
@@ -204,20 +220,7 @@
 		};
 	};
 
-	transceiver1: can-phy0 {
-		compatible = "ti,tcan1042";
-		#phy-cells = <0>;
-		max-bitrate = <5000000>;
-		standby-gpios = <&exp1 8 GPIO_ACTIVE_HIGH>;
-	};
-
-	transceiver2: can-phy1 {
-		compatible = "ti,tcan1042";
-		#phy-cells = <0>;
-		max-bitrate = <5000000>;
-		standby-gpios = <&exp1 9 GPIO_ACTIVE_HIGH>;
-	};
-
+	
 	icssg1_eth: icssg1-eth {
 		compatible = "ti,am642-icssg-prueth";
 		pinctrl-names = "default";
@@ -262,7 +265,8 @@
 		       <&main_pktdma 0x4203 0>; /* mgmnt rsp slice 1 */
 		dma-names = "tx0-0", "tx0-1", "tx0-2", "tx0-3",
 			    "tx1-0", "tx1-1", "tx1-2", "tx1-3",
-			    "rx0", "rx1";
+			    "rx0", "rx1",
+					"rxmgm0", "rxmgm1";
 
 		ethernet-ports {
 			#address-cells = <1>;
@@ -303,9 +307,7 @@
 
 	main_uart0_pins_default: main-uart0-pins-default {
 		pinctrl-single,pins = <
-			AM64X_IOPAD(0x0238, PIN_INPUT, 0) /* (B16) UART0_CTSn */
-			AM64X_IOPAD(0x023c, PIN_OUTPUT, 0) /* (A16) UART0_RTSn */
-			AM64X_IOPAD(0x0230, PIN_INPUT, 0) /* (D15) UART0_RXD */
+						AM64X_IOPAD(0x0230, PIN_INPUT, 0) /* (D15) UART0_RXD */
 			AM64X_IOPAD(0x0234, PIN_OUTPUT, 0) /* (C16) UART0_TXD */
 		>;
 	};
@@ -373,42 +375,6 @@
 		>;
 	};
 
-	ospi0_pins_default: ospi0-pins-default {
-		pinctrl-single,pins = <
-			AM64X_IOPAD(0x0000, PIN_OUTPUT, 0) /* (N20) OSPI0_CLK */
-			AM64X_IOPAD(0x002c, PIN_OUTPUT, 0) /* (L19) OSPI0_CSn0 */
-			AM64X_IOPAD(0x000c, PIN_INPUT, 0) /* (M19) OSPI0_D0 */
-			AM64X_IOPAD(0x0010, PIN_INPUT, 0) /* (M18) OSPI0_D1 */
-			AM64X_IOPAD(0x0014, PIN_INPUT, 0) /* (M20) OSPI0_D2 */
-			AM64X_IOPAD(0x0018, PIN_INPUT, 0) /* (M21) OSPI0_D3 */
-			AM64X_IOPAD(0x001c, PIN_INPUT, 0) /* (P21) OSPI0_D4 */
-			AM64X_IOPAD(0x0020, PIN_INPUT, 0) /* (P20) OSPI0_D5 */
-			AM64X_IOPAD(0x0024, PIN_INPUT, 0) /* (N18) OSPI0_D6 */
-			AM64X_IOPAD(0x0028, PIN_INPUT, 0) /* (M17) OSPI0_D7 */
-			AM64X_IOPAD(0x0008, PIN_INPUT, 0) /* (N19) OSPI0_DQS */
-		>;
-	};
-
-	main_ecap0_pins_default: main-ecap0-pins-default {
-		pinctrl-single,pins = <
-			AM64X_IOPAD(0x0270, PIN_INPUT, 0) /* (D18) ECAP0_IN_APWM_OUT */
-		>;
-	};
-
-	main_mcan0_pins_default: main-mcan0-pins-default {
-		pinctrl-single,pins = <
-			AM64X_IOPAD(0x0254, PIN_INPUT, 0) /* (B17) MCAN0_RX */
-			AM64X_IOPAD(0x0250, PIN_OUTPUT, 0) /* (A17) MCAN0_TX */
-		>;
-	};
-
-	main_mcan1_pins_default: main-mcan1-pins-default {
-		pinctrl-single,pins = <
-			AM64X_IOPAD(0x025c, PIN_INPUT, 0) /* (D17) MCAN1_RX */
-			AM64X_IOPAD(0x0258, PIN_OUTPUT, 0) /* (C17) MCAN1_TX */
-		>;
-	};
-
 	icssg1_mdio1_pins_default: icssg1-mdio1-pins-default {
 		pinctrl-single,pins = <
 			AM64X_IOPAD(0x015c, PIN_OUTPUT, 0) /* (Y6) PRG1_MDIO0_MDC */
@@ -430,6 +396,26 @@
 			AM64X_IOPAD(0x00f0, PIN_INPUT, 2) /* (AA9) PRG1_PRU0_GPO14.PRG1_RGMII1_TD3 */
 			AM64X_IOPAD(0x00f8, PIN_INPUT, 2) /* (V9) PRG1_PRU0_GPO16.PRG1_RGMII1_TXC */
 			AM64X_IOPAD(0x00f4, PIN_INPUT, 2) /* (Y9) PRG1_PRU0_GPO15.PRG1_RGMII1_TX_CTL */
+		>;
+	};
+
+		mygpio1_pins_default: mygpio1_pins_default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x008c, PIN_OUTPUT, 7) /* (T21) GPMC0_WEn.GPIO0_34 */
+			AM64X_IOPAD(0x0098, PIN_OUTPUT, 7) /* (W19) GPMC0_WAIT0.GPIO0_37 */
+			AM64X_IOPAD(0x00a4, PIN_OUTPUT, 7) /* (N17) GPMC0_DIR.GPIO0_40 */
+		>;
+	};
+
+	main_spi4_pins_default: main-spi4-pins-default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x0238, PIN_INPUT, 6) /* (B16) UART0_CTSn.SPI4_CLK */
+			AM64X_IOPAD(0x024c, PIN_INPUT, 6) /* (E16) UART1_RTSn.SPI4_CS0 */
+			AM64X_IOPAD(0x0250, PIN_INPUT, 6) /* (A17) MCAN0_TX.SPI4_CS1 */
+			AM64X_IOPAD(0x0254, PIN_INPUT, 6) /* (B17) MCAN0_RX.SPI4_CS2 */
+			AM64X_IOPAD(0x0270, PIN_INPUT, 6) /* (D18) ECAP0_IN_APWM_OUT.SPI4_CS3 */
+			AM64X_IOPAD(0x023c, PIN_INPUT, 6) /* (A16) UART0_RTSn.SPI4_D0 */
+			AM64X_IOPAD(0x0248, PIN_INPUT, 6) /* (D16) UART1_CTSn.SPI4_D1 */
 		>;
 	};
 
@@ -474,20 +460,7 @@
 				  "TP87", "TP86", "TP89", "TP91";
 	};
 
-	/* osd9616p0899-10 */
-	display@3c {
-		compatible = "solomon,ssd1306fb-i2c";
-		reg = <0x3c>;
-		reset-gpios = <&exp1 14 GPIO_ACTIVE_LOW>;
-		vbat-supply = <&vddb>;
-		solomon,height = <16>;
-		solomon,width = <96>;
-		solomon,com-seq;
-		solomon,com-invdir;
-		solomon,page-offset = <0>;
-		solomon,prechargep1 = <2>;
-		solomon,prechargep2 = <13>;
-	};
+	
 };
 
 /* mcu_gpio0 is reserved for mcu firmware usage */
@@ -508,6 +481,44 @@
 		data-size = <16>;
 	};
 };
+
+&main_spi4 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&main_spi4_pins_default>;
+    ti,spi-num-cs = <4>;
+    status="okay";
+
+
+    spidev0:spidev@0 {
+
+       spi-max-frequency = <24000000>;
+       reg = <0>;
+       compatible = "linux,spidev";
+	};
+
+	 spidev1:spidev@1 {
+
+       spi-max-frequency = <24000000>;
+       reg = <1>;
+       compatible = "linux,spidev";
+	};
+
+	spidev2:spidev@2 {
+
+       spi-max-frequency = <24000000>;
+       reg = <2>;
+       compatible = "linux,spidev";
+	};
+
+	spidev3:spidev@3 {
+
+       spi-max-frequency = <24000000>;
+       reg = <3>;
+       compatible = "linux,spidev";
+	};
+
+};
+
 
 &sdhci0 {
 	/* emmc */
@@ -577,64 +588,6 @@
 	status = "reserved";
 };
 
-&ospi0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&ospi0_pins_default>;
-
-	flash@0 {
-		compatible = "jedec,spi-nor";
-		reg = <0x0>;
-		spi-tx-bus-width = <8>;
-		spi-rx-bus-width = <8>;
-		spi-max-frequency = <25000000>;
-		cdns,tshsl-ns = <60>;
-		cdns,tsd2d-ns = <60>;
-		cdns,tchsh-ns = <60>;
-		cdns,tslch-ns = <60>;
-		cdns,read-delay = <4>;
-
-		partitions {
-			compatible = "fixed-partitions";
-			#address-cells = <1>;
-			#size-cells = <1>;
-
-			partition@0 {
-				label = "ospi.tiboot3";
-				reg = <0x0 0x100000>;
-			};
-
-			partition@100000 {
-				label = "ospi.tispl";
-				reg = <0x100000 0x200000>;
-			};
-
-			partition@300000 {
-				label = "ospi.u-boot";
-				reg = <0x300000 0x400000>;
-			};
-
-			partition@700000 {
-				label = "ospi.env";
-				reg = <0x700000 0x40000>;
-			};
-
-			partition@740000 {
-				label = "ospi.env.backup";
-				reg = <0x740000 0x40000>;
-			};
-
-			partition@800000 {
-				label = "ospi.rootfs";
-				reg = <0x800000 0x37c0000>;
-			};
-
-			partition@3fc0000 {
-				label = "ospi.phypattern";
-				reg = <0x3fc0000 0x40000>;
-			};
-		};
-	};
-};
 
 &mailbox0_cluster2 {
 	mbox_main_r5fss0_core0: mbox-main-r5fss0-core0 {
@@ -725,7 +678,6 @@
 
 &pcie0_rc {
 	status = "okay";
-	reset-gpios = <&exp1 5 GPIO_ACTIVE_HIGH>;
 	phys = <&serdes0_pcie_link>;
 	phy-names = "pcie-phy";
 	num-lanes = <1>;
@@ -735,27 +687,6 @@
 	phys = <&serdes0_pcie_link>;
 	phy-names = "pcie-phy";
 	num-lanes = <1>;
-};
-
-&ecap0 {
-	status = "okay";
-	/* PWM is available on Pin 1 of header J12 */
-	pinctrl-names = "default";
-	pinctrl-0 = <&main_ecap0_pins_default>;
-};
-
-&main_mcan0 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&main_mcan0_pins_default>;
-	phys = <&transceiver1>;
-};
-
-&main_mcan1 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&main_mcan1_pins_default>;
-	phys = <&transceiver2>;
 };
 
 &icssg1_mdio {
