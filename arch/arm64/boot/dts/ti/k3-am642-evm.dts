@@ -274,7 +274,7 @@ pinctrl-names = "default";
 			icssg1_emac0: port@0 {
 				reg = <0>;
 				phy-handle = <&icssg1_phy1>;
-				phy-mode = "rgmii-id";
+				phy-mode = "rgmii-rxid";
 				ti,syscon-rgmii-delay = <&main_conf 0x4110>;
 				/* Filled in by bootloader */
 				local-mac-address = [00 00 00 00 00 00];
