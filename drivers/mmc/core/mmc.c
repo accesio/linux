@@ -1537,11 +1537,23 @@ static int mmc_select_timing(struct mmc_card *card)
 {
 	int err = 0;
 
+  /*
+  * The following code has been modified such that if the check for any standard fails, 
+  * the processor will automatically switch to the next available lowest frequency standard.
+  * This ensures that the booting process never fails. 
+  * The error messages for any failing frequency standard will be displayed in the kernal 
+  * boot prints so that the user knows the currently invoked frequency standard.
+  */
+
 	if (!mmc_can_ext_csd(card))
 		goto bus_speed;
 
 	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES) {
 		err = mmc_select_hs400es(card);
+		if (err && err != -EBADMSG)
+		{
+			err = mmc_select_hs(card);
+		}
 		goto out;
 	}
 
@@ -1549,7 +1561,10 @@ static int mmc_select_timing(struct mmc_card *card)
 		err = mmc_select_hs200(card);
 		if (err == -EBADMSG)
 			card->mmc_avail_type &= ~EXT_CSD_CARD_TYPE_HS200;
-		else
+		else if (err && err != -EBADMSG)
+		{
+			err = mmc_select_hs(card);
+		}
 			goto out;
 	}
 
