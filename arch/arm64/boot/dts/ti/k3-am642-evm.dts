@@ -29,7 +29,7 @@
 	memory@80000000 {
 		device_type = "memory";
 		/* 2G RAM */
-		reg = <0x00000000 0x80000000 0x00000000 0x80000000>;
+		reg = <0x00000000 0x40000000 0x00000000 0x40000000>;
 
 	};
 
@@ -167,14 +167,31 @@
 
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&mygpio1_pins_default>;
 
 		led-0 {
-			label = "am64-evm:red:heartbeat";
-			gpios = <&exp1 16 GPIO_ACTIVE_HIGH>;
+			label = "kernel heartbeat";
+			gpios = <&main_gpio0 40 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
 			linux,default-trigger = "heartbeat";
 			function = LED_FUNCTION_HEARTBEAT;
 			default-state = "off";
 		};
+
+		led-1 {
+			label = "sd-card activity";
+			gpios = <&main_gpio0 37 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc1";
+			default-state = "off";
+		};
+
+		led-2 {
+			label = "cpu-0 activity";
+			gpios = <&main_gpio0 34 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc0";
+			default-state = "off";
+		};
+
 	};
 
 	mdio_mux: mux-controller {
@@ -430,6 +447,14 @@
 			AM64X_IOPAD(0x00f0, PIN_INPUT, 2) /* (AA9) PRG1_PRU0_GPO14.PRG1_RGMII1_TD3 */
 			AM64X_IOPAD(0x00f8, PIN_INPUT, 2) /* (V9) PRG1_PRU0_GPO16.PRG1_RGMII1_TXC */
 			AM64X_IOPAD(0x00f4, PIN_INPUT, 2) /* (Y9) PRG1_PRU0_GPO15.PRG1_RGMII1_TX_CTL */
+		>;
+	};
+
+	mygpio1_pins_default: mygpio1_pins_default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x008c, PIN_OUTPUT, 7) /* (T21) GPMC0_WEn.GPIO0_34 */
+			AM64X_IOPAD(0x0098, PIN_OUTPUT, 7) /* (W19) GPMC0_WAIT0.GPIO0_37 */
+			AM64X_IOPAD(0x00a4, PIN_OUTPUT, 7) /* (N17) GPMC0_DIR.GPIO0_40 */
 		>;
 	};
 
