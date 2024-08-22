@@ -1,4 +1,0 @@
-config ACCES_ENET_MODULE
-        tristate "ACCES eNET PCI driver"
-        help
-                Select this to add ACCES eNET driver
