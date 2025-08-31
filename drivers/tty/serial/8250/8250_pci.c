@@ -1385,6 +1385,7 @@ static int pci_pericom_setup(struct serial_private *priv,
 	else
 		offset += idx * board->uart_offset;
 
+	port->port.flags |= UPF_MAGIC_MULTIPLIER;
 
 	maxnr = (pci_resource_len(priv->dev, bar) - board->first_offset) >>
 		(board->reg_shift + 3);
@@ -1408,6 +1409,8 @@ static int pci_pericom_setup_four_at_eight(struct serial_private *priv,
 		bar += idx;
 	else
 		offset += idx * board->uart_offset;
+
+	port->port.flags |= UPF_MAGIC_MULTIPLIER;
 
 	if (idx==3)
 		offset = 0x38;
