@@ -217,6 +217,7 @@
 				reg = <3>;
 				tx-internal-delay-ps = <250>;
 				rx-internal-delay-ps = <2000>;
+				status = "disabled";
 			};
 		};
 	};
@@ -291,6 +292,7 @@
 				ti,syscon-rgmii-delay = <&main_conf 0x4110>;
 				/* Filled in by bootloader */
 				local-mac-address = [00 00 00 00 00 00];
+				status = "disabled";
 			};
 			icssg1_emac1: port@1 {
 				reg = <1>;
@@ -587,6 +589,7 @@
 &cpsw_port2 {
 	phy-mode = "rgmii-rxid";
 	phy-handle = <&cpsw3g_phy3>;
+	status = "disabled";
 };
 
 &cpsw3g_mdio {
