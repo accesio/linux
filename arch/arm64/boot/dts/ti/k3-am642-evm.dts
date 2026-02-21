@@ -40,7 +40,8 @@
 		bootph-all;
 		device_type = "memory";
 		/* 2G RAM */
-		reg = <0x00000000 0x80000000 0x00000000 0x80000000>;
+		reg = <0x00000000 0x40000000 0x00000000 0x40000000>;
+
 	};
 
 	reserved-memory {
@@ -165,7 +166,7 @@
 		regulator-boot-on;
 		enable-active-high;
 		vin-supply = <&vsys_3v3>;
-		gpio = <&exp1 6 GPIO_ACTIVE_HIGH>;
+//		gpio = <&exp1 6 GPIO_ACTIVE_HIGH>;
 	};
 
 	vddb: regulator-4 {
@@ -195,14 +196,31 @@
 
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&mygpio1_pins_default>;
 
 		led-0 {
-			label = "am64-evm:red:heartbeat";
-			gpios = <&exp1 16 GPIO_ACTIVE_HIGH>;
+			label = "kernel heartbeat";
+			gpios = <&main_gpio0 40 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
 			linux,default-trigger = "heartbeat";
 			function = LED_FUNCTION_HEARTBEAT;
 			default-state = "off";
 		};
+
+		led-1 {
+			label = "sd-card activity";
+			gpios = <&main_gpio0 37 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc1";
+			default-state = "off";
+		};
+
+		led-2 {
+			label = "cpu-0 activity";
+			gpios = <&main_gpio0 34 GPIO_ACTIVE_HIGH>; /*Not 465 that is 425+40 */
+			linux,default-trigger = "mmc0";
+			default-state = "off";
+		};
+
 	};
 
 	mdio_mux: mux-controller {
@@ -226,6 +244,9 @@
 
 			cpsw3g_phy3: ethernet-phy@3 {
 				reg = <3>;
+				tx-internal-delay-ps = <250>;
+				rx-internal-delay-ps = <2000>;
+				status = "disabled";
 			};
 		};
 	};
@@ -293,6 +314,7 @@
 				phy-mode = "rgmii-id";
 				/* Filled in by bootloader */
 				local-mac-address = [00 00 00 00 00 00];
+				status = "disabled";
 			};
 			icssg1_emac1: port@1 {
 				reg = <1>;
@@ -482,7 +504,15 @@
 		>;
 	};
 
-	icssg1_iep0_pins_default: icssg1-iep0-default-pins {
+	mygpio1_pins_default: mygpio1_pins_default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x008c, PIN_OUTPUT, 7) /* (T21) GPMC0_WEn.GPIO0_34 */
+			AM64X_IOPAD(0x0098, PIN_OUTPUT, 7) /* (W19) GPMC0_WAIT0.GPIO0_37 */
+			AM64X_IOPAD(0x00a4, PIN_OUTPUT, 7) /* (N17) GPMC0_DIR.GPIO0_40 */
+		>;
+	};
+
+	icssg1_iep0_pins_default: icssg1-iep0-pins-default {
 		pinctrl-single,pins = <
 			AM64X_IOPAD(0x0104, PIN_OUTPUT, 2) /* (W7) PRG1_PRU0_GPO19.PRG1_IEP0_EDC_SYNC_OUT0 */
 		>;
@@ -653,7 +683,7 @@
 &cpsw_port2 {
 	phy-mode = "rgmii-rxid";
 	phy-handle = <&cpsw3g_phy3>;
-	status = "okay";
+	status = "disabled";
 };
 
 &cpsw3g_mdio {
@@ -848,7 +878,7 @@
 
 &pcie0_rc {
 	status = "okay";
-	reset-gpios = <&exp1 5 GPIO_ACTIVE_HIGH>;
+//	reset-gpios = <&exp1 5 GPIO_ACTIVE_HIGH>;
 	phys = <&serdes0_pcie_link>;
 	phy-names = "pcie-phy";
 	num-lanes = <1>;
