@@ -16,6 +16,7 @@
 #include <linux/irqdomain.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
+#include <linux/of_irq.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
@@ -31,6 +32,25 @@
 #define STATUS_CLR_REG_SYS_2	0x708
 #define LINK_DOWN		BIT(1)
 #define J7200_LINK_DOWN		BIT(10)
+
+#define EOI_REG			0x10
+
+#define ENABLE_REG_SYS_0	0x100
+#define STATUS_REG_SYS_0	0x500
+#define STATUS_CLR_REG_SYS_0	0x700
+#define INTx_EN(num)		(1 << (num))
+
+#define ENABLE_REG_SYS_1	0x104
+#define STATUS_REG_SYS_1	0x504
+#define SYS1_INTx_EN(num)	(1 << (22 + (num)))
+
+#define USER_EOI_REG		0xC8
+enum eoi_reg {
+	EOI_DOWNSTREAM_INTERRUPT,
+	EOI_FLR_INTERRUPT,
+	EOI_LEGACY_INTERRUPT,
+	EOI_POWER_STATE_INTERRUPT,
+};
 
 #define J721E_PCIE_USER_CMD_STATUS	0x4
 #define LINK_TRAINING_ENABLE		BIT(0)
@@ -61,6 +81,8 @@ struct j721e_pcie {
 	void __iomem		*user_cfg_base;
 	void __iomem		*intd_cfg_base;
 	u32			linkdown_irq_regfield;
+	struct irq_domain	*legacy_irq_domain;
+	bool			is_intc_v1;
 };
 
 enum j721e_pcie_mode {
@@ -75,6 +97,7 @@ struct j721e_pcie_data {
 	unsigned int		quirk_disable_flr:1;
 	u32			linkdown_irq_regfield;
 	unsigned int		byte_access_allowed:1;
+	unsigned int		is_intc_v1:1;
 	unsigned int		max_lanes;
 };
 
@@ -123,6 +146,132 @@ static void j721e_pcie_config_link_irq(struct j721e_pcie *pcie)
 	reg = j721e_pcie_intd_readl(pcie, ENABLE_REG_SYS_2);
 	reg |= pcie->linkdown_irq_regfield;
 	j721e_pcie_intd_writel(pcie, ENABLE_REG_SYS_2, reg);
+}
+
+/* INTx handler for J721E (INTC v1): uses SYS_0 status/clear + intd EOI register */
+static void j721e_pcie_v1_legacy_irq_handler(struct irq_desc *desc)
+{
+	struct j721e_pcie *pcie = irq_desc_get_handler_data(desc);
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	int virq, i;
+	u32 reg;
+
+	chained_irq_enter(chip, desc);
+
+	for (i = 0; i < PCI_NUM_INTX; i++) {
+		reg = j721e_pcie_intd_readl(pcie, STATUS_REG_SYS_0);
+		if (!(reg & INTx_EN(i)))
+			continue;
+		virq = irq_find_mapping(pcie->legacy_irq_domain, 3 - i);
+		generic_handle_irq(virq);
+		j721e_pcie_intd_writel(pcie, STATUS_CLR_REG_SYS_0, INTx_EN(i));
+		j721e_pcie_intd_writel(pcie, EOI_REG, 3 - i);
+	}
+
+	chained_irq_exit(chip, desc);
+}
+
+/* INTx handler for J7200/AM64 (INTC v2): uses SYS_1 status + user EOI register */
+static void j721e_pcie_legacy_irq_handler(struct irq_desc *desc)
+{
+	struct j721e_pcie *pcie = irq_desc_get_handler_data(desc);
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	int virq, i;
+	u32 reg;
+
+	chained_irq_enter(chip, desc);
+
+	for (i = 0; i < PCI_NUM_INTX; i++) {
+		reg = j721e_pcie_intd_readl(pcie, STATUS_REG_SYS_1);
+		if (!(reg & SYS1_INTx_EN(i)))
+			continue;
+		virq = irq_find_mapping(pcie->legacy_irq_domain, i);
+		generic_handle_irq(virq);
+		j721e_pcie_user_writel(pcie, USER_EOI_REG, EOI_LEGACY_INTERRUPT);
+	}
+
+	chained_irq_exit(chip, desc);
+}
+
+static int j721e_pcie_intx_map(struct irq_domain *domain, unsigned int irq,
+			       irq_hw_number_t hwirq)
+{
+	irq_set_chip_and_handler(irq, &dummy_irq_chip, handle_simple_irq);
+	irq_set_chip_data(irq, domain->host_data);
+	return 0;
+}
+
+static const struct irq_domain_ops j721e_pcie_intx_domain_ops = {
+	.map = j721e_pcie_intx_map,
+	.xlate = pci_irqd_intx_xlate,
+};
+
+static int j721e_pcie_config_legacy_irq(struct j721e_pcie *pcie)
+{
+	struct irq_domain *legacy_irq_domain;
+	struct device *dev = pcie->cdns_pcie->dev;
+	struct device_node *node = dev->of_node;
+	struct device_node *intc_node;
+	int irq, i;
+	u32 reg;
+
+	dev_info(dev, "j721e_pcie_config_legacy_irq: node=%s is_intc_v1=%d\n",
+		 node ? node->full_name : "NULL", pcie->is_intc_v1);
+
+	intc_node = of_get_child_by_name(node, "interrupt-controller");
+	if (!intc_node) {
+		dev_info(dev, "No interrupt-controller child node found; legacy IRQ disabled\n");
+		return 0;
+	}
+
+	dev_info(dev, "j721e_pcie_config_legacy_irq: intc_node=%s fwnode=%p\n",
+		 intc_node->full_name, &intc_node->fwnode);
+
+	irq = irq_of_parse_and_map(intc_node, 0);
+	if (!irq) {
+		dev_err(dev, "Failed to parse and map legacy IRQ\n");
+		of_node_put(intc_node);
+		return -EINVAL;
+	}
+
+	dev_info(dev, "j721e_pcie_config_legacy_irq: mapped irq=%d\n", irq);
+
+	if (pcie->is_intc_v1)
+		irq_set_chained_handler_and_data(irq,
+				j721e_pcie_v1_legacy_irq_handler, pcie);
+	else
+		irq_set_chained_handler_and_data(irq,
+				j721e_pcie_legacy_irq_handler, pcie);
+
+	legacy_irq_domain = irq_domain_add_linear(intc_node, PCI_NUM_INTX,
+						  &j721e_pcie_intx_domain_ops,
+						  NULL);
+	of_node_put(intc_node);
+	if (!legacy_irq_domain) {
+		dev_err(dev, "Failed to add IRQ domain for legacy INTx\n");
+		return -EINVAL;
+	}
+
+	dev_info(dev, "j721e_pcie_config_legacy_irq: domain=%p registered successfully\n",
+		 legacy_irq_domain);
+
+	pcie->legacy_irq_domain = legacy_irq_domain;
+
+	if (pcie->is_intc_v1) {
+		for (i = 0; i < PCI_NUM_INTX; i++) {
+			reg = j721e_pcie_intd_readl(pcie, ENABLE_REG_SYS_0);
+			reg |= INTx_EN(i);
+			j721e_pcie_intd_writel(pcie, ENABLE_REG_SYS_0, reg);
+		}
+	} else {
+		for (i = 0; i < PCI_NUM_INTX; i++) {
+			reg = j721e_pcie_intd_readl(pcie, ENABLE_REG_SYS_1);
+			reg |= SYS1_INTx_EN(i);
+			j721e_pcie_intd_writel(pcie, ENABLE_REG_SYS_1, reg);
+		}
+	}
+
+	return 0;
 }
 
 static int j721e_pcie_start_link(struct cdns_pcie *cdns_pcie)
@@ -360,6 +509,7 @@ static const struct j721e_pcie_data j721e_pcie_rc_data = {
 	.quirk_retrain_flag = true,
 	.byte_access_allowed = false,
 	.linkdown_irq_regfield = LINK_DOWN,
+	.is_intc_v1 = true,
 	.max_lanes = 2,
 };
 
@@ -530,6 +680,7 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 
 	pcie->mode = mode;
 	pcie->linkdown_irq_regfield = data->linkdown_irq_regfield;
+	pcie->is_intc_v1 = data->is_intc_v1;
 
 	base = devm_platform_ioremap_resource_byname(pdev, "intd_cfg");
 	if (IS_ERR(base))
@@ -618,6 +769,12 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 		if (gpiod) {
 			msleep(PCIE_T_PVPERL_MS);
 			gpiod_set_value_cansleep(gpiod, 1);
+		}
+
+		ret = j721e_pcie_config_legacy_irq(pcie);
+		if (ret < 0) {
+			clk_disable_unprepare(pcie->refclk);
+			goto err_pcie_setup;
 		}
 
 		ret = cdns_pcie_host_setup(rc);
