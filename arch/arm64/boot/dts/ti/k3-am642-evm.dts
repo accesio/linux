@@ -16,7 +16,7 @@
 
 / {
 	compatible = "ti,am642-evm", "ti,am642";
-	model = "Texas Instruments AM642 EVM";
+	model = "ACCES I/O Products eNET-AIO16-16F Family";
 
 	chosen {
 		stdout-path = &main_uart0;
@@ -39,8 +39,8 @@
 	memory@80000000 {
 		bootph-all;
 		device_type = "memory";
-		/* 2G RAM */
-		reg = <0x00000000 0x40000000 0x00000000 0x40000000>;
+		/* One AS4C512M16D4: 512M x 16 bits = 1 GiB. */
+		reg = <0x00000000 0x80000000 0x00000000 0x40000000>;
 
 	};
 
@@ -194,6 +194,19 @@
 		regulator-boot-on;
 	};
 
+	/* Experimental manual PCIe reset control. This consumes OSPI0_D1. */
+	pcie_rst_test_gpio {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcie_rst_test_pins_default>;
+
+		pcie_rst_assert {
+			label = "pcie-rst-assert";
+			gpios = <&main_gpio0 4 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
+			default-state = "on";
+		};
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -327,15 +340,21 @@
 };
 
 &main_pmx0 {
+	pcie_rst_test_pins_default: pcie-rst-test-default-pins {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x0010, PIN_INPUT_PULLUP, 7) /* (M18) OSPI0_D1.GPIO0_4 */
+		>;
+	};
+
 	main_mmc1_pins_default: main-mmc1-default-pins {
 		pinctrl-single,pins = <
 			AM64X_IOPAD(0x0294, PIN_INPUT_PULLUP, 0) /* (J19) MMC1_CMD */
-			AM64X_IOPAD(0x028c, PIN_INPUT, 0) /* (L20) MMC1_CLK */
+			AM64X_IOPAD(0x028c, PIN_INPUT_PULLDOWN, 0) /* (L20) MMC1_CLK */
 			AM64X_IOPAD(0x0288, PIN_INPUT_PULLUP, 0) /* (K21) MMC1_DAT0 */
 			AM64X_IOPAD(0x0284, PIN_INPUT_PULLUP, 0) /* (L21) MMC1_DAT1 */
 			AM64X_IOPAD(0x0280, PIN_INPUT_PULLUP, 0) /* (K19) MMC1_DAT2 */
 			AM64X_IOPAD(0x027c, PIN_INPUT_PULLUP, 0) /* (K18) MMC1_DAT3 */
-			AM64X_IOPAD(0x0298, PIN_INPUT, 0) /* (D19) MMC1_SDCD */
+			AM64X_IOPAD(0x0298, PIN_INPUT_PULLUP, 0) /* (D19) MMC1_SDCD */
 			AM64X_IOPAD(0x029c, PIN_INPUT, 0) /* (C20) MMC1_SDWP */
 			AM64X_IOPAD(0x0290, PIN_INPUT, 0) /* MMC1_CLKLB */
 		>;
@@ -562,7 +581,7 @@
 
 &main_i2c1 {
 	bootph-all;
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_i2c1_pins_default>;
 	clock-frequency = <400000>;
@@ -605,13 +624,13 @@
 	bootph-all;
 };
 
-/* mcu_gpio0 and mcu_gpio_intr are reserved for mcu firmware usage */
+/* MCU-domain GPIO is unused. */
 &mcu_gpio0 {
-	status = "reserved";
+	status = "disabled";
 };
 
 &mcu_gpio_intr {
-	status = "reserved";
+	status = "disabled";
 };
 
 &main_spi0 {
@@ -641,10 +660,26 @@
 &sdhci1 {
 	bootph-all;
 	status = "okay";
-	vmmc-supply = <&vdd_mmc1>;
+	vmmc-supply = <&vsys_3v3>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_mmc1_pins_default>;
 	disable-wp;
+};
+
+&main_r5fss0 {
+	status = "disabled";
+};
+
+&main_r5fss1 {
+	status = "disabled";
+};
+
+&icssg0 {
+	status = "disabled";
+};
+
+&icssg1 {
+	status = "disabled";
 };
 
 &usbss0 {
@@ -664,7 +699,7 @@
 &cpsw3g {
 	bootph-all;
 	pinctrl-names = "default";
-	pinctrl-0 = <&rgmii1_pins_default>, <&rgmii2_pins_default>;
+	pinctrl-0 = <&rgmii1_pins_default>;
 	status = "okay";
 
 	/* Map HW8_TS_PUSH to GENF1 */
@@ -701,8 +736,8 @@
 };
 
 &tscadc0 {
-	/* ADC is reserved for R5 usage */
-	status = "reserved";
+	/* ADC is disabled for this profile. */
+	status = "disabled";
 
 	dmas = <&main_bcdma 0 0x440f 0>, <&main_bcdma 0 0x4410 0>;
 	dma-names = "fifo0", "fifo1";
@@ -713,7 +748,8 @@
 };
 
 &ospi0 {
-	status = "okay";
+	/* Disabled while GPIO0_4 is used for experimental PCIe reset control. */
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&ospi0_pins_default>;
 	bootph-all;
@@ -778,7 +814,7 @@
 };
 
 &mailbox0_cluster2 {
-	status = "okay";
+	status = "disabled";
 
 	mbox_main_r5fss0_core0: mbox-main-r5fss0-core0 {
 		ti,mbox-rx = <0 0 2>;
@@ -792,7 +828,7 @@
 };
 
 &mailbox0_cluster4 {
-	status = "okay";
+	status = "disabled";
 
 	mbox_main_r5fss1_core0: mbox-main-r5fss1-core0 {
 		ti,mbox-rx = <0 0 2>;
@@ -806,7 +842,7 @@
 };
 
 &mailbox0_cluster6 {
-	status = "okay";
+	status = "disabled";
 
 	mbox_m4_0: mbox-m4-0 {
 		ti,mbox-rx = <0 0 2>;
@@ -818,31 +854,35 @@
 	mboxes = <&mailbox0_cluster2 &mbox_main_r5fss0_core0>;
 	memory-region = <&main_r5fss0_core0_dma_memory_region>,
 			<&main_r5fss0_core0_memory_region>;
+	status = "disabled";
 };
 
 &main_r5fss0_core1 {
 	mboxes = <&mailbox0_cluster2 &mbox_main_r5fss0_core1>;
 	memory-region = <&main_r5fss0_core1_dma_memory_region>,
 			<&main_r5fss0_core1_memory_region>;
+	status = "disabled";
 };
 
 &main_r5fss1_core0 {
 	mboxes = <&mailbox0_cluster4 &mbox_main_r5fss1_core0>;
 	memory-region = <&main_r5fss1_core0_dma_memory_region>,
 			<&main_r5fss1_core0_memory_region>;
+	status = "disabled";
 };
 
 &main_r5fss1_core1 {
 	mboxes = <&mailbox0_cluster4 &mbox_main_r5fss1_core1>;
 	memory-region = <&main_r5fss1_core1_dma_memory_region>,
 			<&main_r5fss1_core1_memory_region>;
+	status = "disabled";
 };
 
 &mcu_m4fss {
 	mboxes = <&mailbox0_cluster6 &mbox_m4_0>;
 	memory-region = <&mcu_m4fss_dma_memory_region>,
 			<&mcu_m4fss_memory_region>;
-	status = "okay";
+	status = "disabled";
 };
 
 /* main domain timers 8 to 11 are used by TI MCU FW */
@@ -892,21 +932,21 @@
 };
 
 &main_mcan0 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_mcan0_pins_default>;
 	phys = <&transceiver1>;
 };
 
 &main_mcan1 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_mcan1_pins_default>;
 	phys = <&transceiver2>;
 };
 
 &icssg1_mdio {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&icssg1_mdio1_pins_default>;
 
@@ -918,6 +958,7 @@
 };
 
 &gpmc0 {
+	status = "disabled";
 	ranges = <0 0 0x00 0x51000000 0x01000000>; /* CS0 space. Min partition = 16MB */
 };
 
